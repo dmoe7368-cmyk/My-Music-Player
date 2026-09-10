@@ -8,7 +8,7 @@ window.DRIVE_CONFIG = {
   folderId: "1903JCYkLeqt6MJ7bFWO9G4Ikgr0bbKY2",
 
   // Google Drive API Key
-  apiKey: "YOUR_API_KEY_HERE",
+  apiKey: "AIzaSyCmpoImAy7O8brST6lBFWBupa_AwEeeEGo",
 
   // Automatically load music from the folder
   autoLoad: true
