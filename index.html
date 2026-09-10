@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Local and Google Drive MP3 music player">
+  <title>My Music Player</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">🎵 <span>My Music</span></div>
+      <nav>
+        <button class="nav-btn active" data-view="local">💻 Local Music</button>
+        <button class="nav-btn" data-view="drive">☁️ Google Drive</button>
+        <button class="nav-btn" data-view="favorites">❤️ Favorites</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <button id="chooseFilesBtn" class="primary-btn">＋ Choose MP3 Files</button>
+        <button id="clearLocalBtn" class="text-btn">Clear local playlist</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1 id="viewTitle">Local Music</h1>
+          <p id="viewSubtitle">Play MP3 files directly from your browser.</p>
+        </div>
+        <input id="searchInput" type="search" placeholder="Search songs..." aria-label="Search songs">
+      </header>
+
+      <section id="drivePanel" class="drive-panel hidden">
+        <div>
+          <h2>Google Drive</h2>
+          <p id="driveStatus">Not connected. Add your Google OAuth Client ID in <code>js/config.js</code>.</p>
+        </div>
+        <div class="drive-actions">
+          <button id="driveConnectBtn" class="primary-btn">Connect Drive</button>
+          <button id="driveRefreshBtn" class="secondary-btn hidden">Refresh</button>
+        </div>
+      </section>
+
+      <section class="library">
+        <div class="section-head">
+          <h2 id="sectionTitle">Songs</h2>
+          <span id="songCount">0 songs</span>
+        </div>
+        <div id="emptyState" class="empty-state">
+          <div class="empty-icon">🎧</div>
+          <h3>No songs yet</h3>
+          <p>Choose MP3 files to start listening.</p>
+          <button class="primary-btn" id="emptyChooseBtn">Choose MP3 Files</button>
+        </div>
+        <div id="songList" class="song-list"></div>
+      </section>
+    </main>
+
+    <footer class="player">
+      <div class="now-playing">
+        <div id="cover" class="cover">♪</div>
+        <div class="track-info">
+          <strong id="nowTitle">Nothing playing</strong>
+          <span id="nowArtist">—</span>
+        </div>
+        <button id="favoriteBtn" class="icon-btn" title="Favorite">♡</button>
+      </div>
+
+      <div class="controls">
+        <div class="control-buttons">
+          <button id="shuffleBtn" class="icon-btn" title="Shuffle">🔀</button>
+          <button id="prevBtn" class="icon-btn" title="Previous">⏮</button>
+          <button id="playBtn" class="play-btn" title="Play">▶</button>
+          <button id="nextBtn" class="icon-btn" title="Next">⏭</button>
+          <button id="repeatBtn" class="icon-btn" title="Repeat">🔁</button>
+        </div>
+        <div class="progress-row">
+          <span id="currentTime">0:00</span>
+          <input id="progress" type="range" min="0" max="100" value="0">
+          <span id="duration">0:00</span>
+        </div>
+      </div>
+
+      <div class="volume">
+        <span>🔊</span>
+        <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8">
+      </div>
+    </footer>
+  </div>
+
+  <input id="fileInput" type="file" accept="audio/mpeg,audio/mp3,.mp3" multiple hidden>
+  <audio id="audio"></audio>
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
