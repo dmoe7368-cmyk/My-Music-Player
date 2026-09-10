@@ -99,3 +99,140 @@ input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
  .song-details strong{font-size:13px}
 }
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
+
+/* XAMOE fixed-screen + smooth-scroll behavior */
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+.app {
+  width: 100%;
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+.main {
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+}
+
+.main::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  padding-top: 2px;
+  padding-bottom: 12px;
+  background: rgba(8, 10, 18, .94);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+/* Never allow song text/buttons to enter the Android text-selection UI. */
+.song-item,
+.song-item *,
+.nav-btn,
+.nav-btn *,
+.icon-btn,
+.icon-btn *,
+.primary-btn,
+.primary-btn *,
+.secondary-btn,
+.secondary-btn *,
+.text-btn,
+.text-btn *,
+h1,
+h2,
+h3,
+p,
+span,
+strong,
+small {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Keep scrolling smooth without horizontal page movement. */
+.song-list {
+  touch-action: pan-y;
+}
+
+@media (max-width: 800px) {
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    min-height: 100dvh;
+  }
+
+  .sidebar {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    inset: auto;
+    width: 100%;
+    flex: 0 0 auto;
+    z-index: 60;
+  }
+
+  .main {
+    flex: 1 1 auto;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    margin: 0;
+    padding-bottom: 145px;
+  }
+
+  .topbar {
+    top: 0;
+    margin-left: -1px;
+    margin-right: -1px;
+    padding-top: 10px;
+    padding-bottom: 13px;
+  }
+
+  .library {
+    margin-bottom: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main,
+  .song-list {
+    scroll-behavior: auto !important;
+  }
+}
