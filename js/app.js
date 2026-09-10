@@ -1,1319 +1,1139 @@
-const audio = document.getElementById("audio");
-const fileInput = document.getElementById("fileInput");
-const songList = document.getElementById("songList");
-const emptyState = document.getElementById("emptyState");
-const searchInput = document.getElementById("searchInput");
-
-let localSongs = [];
-let driveSongs = [];
-let currentSongs = [];
-let currentIndex = -1;
-
-let currentView = "local";
-let shuffle = false;
-let repeat = false;
-
-let driveAccessToken = "";
-let driveTokenClient = null;
-let driveFolderId = null;
-let currentDriveBlobUrl = null;
-
-const DRIVE_SCOPE =
-  "https://www.googleapis.com/auth/drive.readonly";
-
-const DRIVE_API =
-  "https://www.googleapis.com/drive/v3";
-
-const $ = id => document.getElementById(id);
-
-
-/* =========================================================
-   HELPERS
-========================================================= */
-
-function formatTime(seconds) {
-  if (!Number.isFinite(seconds)) {
-    return "0:00";
-  }
-
-  const m = Math.floor(seconds / 60);
-
-  const s = Math.floor(seconds % 60)
-    .toString()
-    .padStart(2, "0");
-
-  return `${m}:${s}`;
-}
-
-
-function makeId() {
-  if (
-    window.crypto &&
-    typeof window.crypto.randomUUID === "function"
-  ) {
-    return window.crypto.randomUUID();
-  }
-
-  return Date.now() + "-" + Math.random();
-}
-
-
-function escapeHtml(value) {
-  return String(value).replace(
-    /[&<>"']/g,
-    c => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#039;"
-    }[c])
-  );
-}
-
-
-/* =========================================================
-   LOCAL MUSIC
-========================================================= */
-
-function getLocalMeta(file) {
-  return {
-    id: makeId(),
-    title: file.name.replace(/\.mp3$/i, ""),
-    artist: "Local file",
-    file: file,
-    type: "local",
-    duration: 0,
-    favorite: false
-  };
-}
-
-
-/* =========================================================
-   DRIVE MUSIC
-========================================================= */
-
-function getDriveMeta(file) {
-  return {
-    id: "drive-" + file.id,
-    driveId: file.id,
-    title: file.name.replace(/\.mp3$/i, ""),
-    artist: "Google Drive",
-    type: "drive",
-    duration: 0,
-    favorite: false,
-    mimeType: file.mimeType || "audio/mpeg"
-  };
-}
-
-
-/* =========================================================
-   VISIBLE SONGS
-========================================================= */
-
-function visibleSongs() {
-  let source;
-
-  if (currentView === "drive") {
-    source = driveSongs;
-  } else if (currentView === "favorites") {
-    source = [...localSongs, ...driveSongs]
-      .filter(song => song.favorite);
-  } else {
-    source = localSongs;
-  }
-
-  const q = searchInput.value
-    .trim()
-    .toLowerCase();
-
-  if (!q) {
-    return source;
-  }
+// ============================================
+// MY MUSIC PLAYER
+// PUBLIC GOOGLE DRIVE VERSION
+// ============================================
 
-  return source.filter(song =>
-    `${song.title} ${song.artist}`
-      .toLowerCase()
-      .includes(q)
-  );
-}
+document.addEventListener("DOMContentLoaded", () => {
+  // ------------------------------------------
+  // DOM ELEMENTS
+  // ------------------------------------------
 
+  const audio = document.getElementById("audioPlayer");
 
-/* =========================================================
-   RENDER
-========================================================= */
+  const songTitle = document.getElementById("songTitle");
+  const songArtist = document.getElementById("songArtist");
 
-function render() {
-  currentSongs = visibleSongs();
+  const playBtn = document.getElementById("playBtn");
+  const prevBtn = document.getElementById("prevBtn");
+  const nextBtn = document.getElementById("nextBtn");
 
-  $("songCount").textContent =
-    `${currentSongs.length} song${currentSongs.length === 1 ? "" : "s"}`;
+  const progressBar = document.getElementById("progressBar");
+  const currentTimeEl = document.getElementById("currentTime");
+  const durationEl = document.getElementById("duration");
 
-  songList.innerHTML = "";
+  const volumeBar = document.getElementById("volumeBar");
 
-  emptyState.classList.toggle(
-    "hidden",
-    currentSongs.length > 0
-  );
+  const shuffleBtn = document.getElementById("shuffleBtn");
+  const repeatBtn = document.getElementById("repeatBtn");
 
-  if (!currentSongs.length) {
-    return;
-  }
+  const searchInput = document.getElementById("searchInput");
 
-  currentSongs.forEach((song, i) => {
+  const localFilesInput = document.getElementById("localFiles");
 
-    const row = document.createElement("div");
+  const localMusicList = document.getElementById("localMusicList");
+  const driveMusicList = document.getElementById("driveMusicList");
 
-    row.className =
-      "song" +
-      (
-        currentIndex >= 0 &&
-        currentSongs[currentIndex]?.id === song.id
-          ? " active"
-          : ""
-      );
+  const driveConnectBtn = document.getElementById("driveConnectBtn");
+  const driveRefreshBtn = document.getElementById("driveRefreshBtn");
 
-    row.innerHTML = `
-      <div class="song-cover">♪</div>
+  const driveStatus = document.getElementById("driveStatus");
 
-      <div class="song-meta">
-        <strong class="song-title">
-          ${escapeHtml(song.title)}
-        </strong>
+  const emptyState = document.getElementById("emptyState");
 
-        <span class="song-artist">
-          ${escapeHtml(song.artist || "Unknown")}
-        </span>
-      </div>
+  // ------------------------------------------
+  // STATE
+  // ------------------------------------------
 
-      <span class="song-duration">
-        ${formatTime(song.duration)}
-      </span>
+  let localSongs = [];
+  let driveSongs = [];
 
-      <button
-        class="fav-row"
-        title="Favorite"
-      >
-        ${song.favorite ? "♥" : "♡"}
-      </button>
-    `;
+  let currentPlaylist = [];
+  let currentIndex = -1;
 
-    row.addEventListener("click", event => {
+  let currentView = "local";
 
-      if (event.target.closest(".fav-row")) {
+  let isPlaying = false;
+  let isShuffle = false;
+  let repeatMode = "off";
 
-        song.favorite = !song.favorite;
+  let searchText = "";
 
-        if (
-          currentSongs[currentIndex] &&
-          currentSongs[currentIndex].id === song.id
-        ) {
-          $("favoriteBtn").textContent =
-            song.favorite ? "♥" : "♡";
-        }
+  let localObjectUrl = null;
 
-        render();
-        return;
-      }
+  // ------------------------------------------
+  // HELPERS
+  // ------------------------------------------
 
-      playIndex(i);
-    });
-
-    songList.appendChild(row);
-  });
-}
-
-
-/* =========================================================
-   PLAY SONG
-========================================================= */
-
-async function playIndex(index) {
-
-  if (!currentSongs[index]) {
-    return;
-  }
-
-  currentIndex = index;
-
-  const song = currentSongs[index];
-
-  $("nowTitle").textContent =
-    song.title;
-
-  $("nowArtist").textContent =
-    song.artist || "Unknown";
-
-  $("favoriteBtn").textContent =
-    song.favorite ? "♥" : "♡";
-
-
-  /* -----------------------------------------
-     LOCAL FILE
-  ----------------------------------------- */
-
-  if (song.type === "local") {
-
-    cleanupDriveBlob();
-
-    audio.src =
-      URL.createObjectURL(song.file);
-
-    try {
-      await audio.play();
-    } catch (error) {
-      console.warn("Playback:", error);
+  function formatTime(seconds) {
+    if (!Number.isFinite(seconds) || seconds < 0) {
+      return "0:00";
     }
 
-    render();
+    const minutes = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
 
-    return;
+    return `${minutes}:${secs.toString().padStart(2, "0")}`;
   }
 
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text ?? "";
+    return div.innerHTML;
+  }
 
-  /* -----------------------------------------
-     GOOGLE DRIVE FILE
-  ----------------------------------------- */
+  function getDriveStreamUrl(fileId) {
+    return (
+      "https://drive.google.com/uc?export=download&id=" +
+      encodeURIComponent(fileId)
+    );
+  }
 
-  if (song.type === "drive") {
+  function getDrivePreviewUrl(fileId) {
+    return (
+      "https://drive.google.com/file/d/" +
+      encodeURIComponent(fileId) +
+      "/view"
+    );
+  }
 
-    if (!driveAccessToken) {
+  // ------------------------------------------
+  // PUBLIC DRIVE SONGS
+  // ------------------------------------------
 
-      $("driveStatus").textContent =
-        "Please connect Google Drive first.";
+  function loadPublicDriveMusic() {
+    if (
+      !window.DRIVE_CONFIG ||
+      !Array.isArray(DRIVE_CONFIG.songs)
+    ) {
+      console.error("DRIVE_CONFIG.songs is missing.");
+
+      driveSongs = [];
+
+      updateDriveStatus(
+        "No public Drive songs configured."
+      );
+
+      renderDriveSongs();
 
       return;
     }
 
-    $("driveStatus").textContent =
-      `Loading: ${song.title}`;
-
-    try {
-
-      await playDriveSong(song);
-
-    } catch (error) {
-
-      console.error(error);
-
-      $("driveStatus").textContent =
-        "Unable to play this Google Drive file.";
-
-      alert(
-        "Google Drive song ဖွင့်လို့မရပါ။ Google Drive ကို Refresh/Connect ပြန်လုပ်ကြည့်ပါ။"
-      );
-    }
-
-    render();
-  }
-}
-
-
-/* =========================================================
-   PLAY GOOGLE DRIVE SONG
-========================================================= */
-
-async function playDriveSong(song) {
-
-  cleanupDriveBlob();
-
-  const response = await fetch(
-    `${DRIVE_API}/files/${encodeURIComponent(song.driveId)}?alt=media`,
-    {
-      method: "GET",
-
-      headers: {
-        Authorization:
-          `Bearer ${driveAccessToken}`
-      }
-    }
-  );
-
-
-  if (!response.ok) {
-
-    const text =
-      await response.text();
-
-    console.error(
-      "Drive download error:",
-      response.status,
-      text
-    );
-
-    throw new Error(
-      `Drive download failed: ${response.status}`
-    );
-  }
-
-
-  const blob =
-    await response.blob();
-
-
-  currentDriveBlobUrl =
-    URL.createObjectURL(blob);
-
-
-  audio.src =
-    currentDriveBlobUrl;
-
-
-  await audio.play();
-
-
-  $("driveStatus").textContent =
-    `${driveSongs.length} songs loaded from My Music`;
-}
-
-
-/* =========================================================
-   CLEAN DRIVE BLOB
-========================================================= */
-
-function cleanupDriveBlob() {
-
-  if (currentDriveBlobUrl) {
-
-    URL.revokeObjectURL(
-      currentDriveBlobUrl
-    );
-
-    currentDriveBlobUrl = null;
-  }
-}
-
-
-/* =========================================================
-   NEXT
-========================================================= */
-
-function next() {
-
-  if (!currentSongs.length) {
-    return;
-  }
-
-  let nextIndex;
-
-  if (shuffle) {
-
-    nextIndex =
-      Math.floor(
-        Math.random() *
-        currentSongs.length
-      );
-
-  } else {
-
-    nextIndex =
-      (currentIndex + 1) %
-      currentSongs.length;
-  }
-
-  playIndex(nextIndex);
-}
-
-
-/* =========================================================
-   PREVIOUS
-========================================================= */
-
-function previous() {
-
-  if (!currentSongs.length) {
-    return;
-  }
-
-  if (audio.currentTime > 3) {
-
-    audio.currentTime = 0;
-
-    return;
-  }
-
-  const previousIndex =
-    (
-      currentIndex -
-      1 +
-      currentSongs.length
-    ) %
-    currentSongs.length;
-
-  playIndex(previousIndex);
-}
-
-
-/* =========================================================
-   LOCAL FILE BUTTONS
-========================================================= */
-
-$("chooseFilesBtn").onclick = () => {
-  fileInput.click();
-};
-
-
-$("emptyChooseBtn").onclick = () => {
-  fileInput.click();
-};
-
-
-fileInput.addEventListener(
-  "change",
-  event => {
-
-    const files =
-      [...event.target.files]
-        .filter(file =>
-          file.name
-            .toLowerCase()
-            .endsWith(".mp3")
+    driveSongs = DRIVE_CONFIG.songs
+      .filter(song => {
+        return (
+          song &&
+          song.fileId &&
+          song.fileId !== "YOUR_FILE_ID_HERE"
         );
+      })
+      .map((song, index) => {
+        return {
+          id: `drive-${song.fileId}`,
 
+          title:
+            song.title ||
+            `Drive Song ${index + 1}`,
 
-    localSongs.push(
-      ...files.map(getLocalMeta)
+          artist:
+            song.artist ||
+            "Unknown Artist",
+
+          fileId: song.fileId,
+
+          streamUrl: getDriveStreamUrl(song.fileId),
+
+          previewUrl: getDrivePreviewUrl(song.fileId),
+
+          source: "drive",
+
+          favorite: false
+        };
+      });
+
+    updateDriveStatus(
+      `${driveSongs.length} public song${
+        driveSongs.length === 1 ? "" : "s"
+      } loaded`
     );
 
+    renderDriveSongs();
+  }
+
+  function updateDriveStatus(message) {
+    if (!driveStatus) return;
+
+    driveStatus.textContent = message;
+  }
+
+  // ------------------------------------------
+  // LOCAL MUSIC
+  // ------------------------------------------
+
+  function loadLocalMusic(files) {
+    if (!files || !files.length) {
+      return;
+    }
+
+    const selectedFiles = Array.from(files);
+
+    const mp3Files = selectedFiles.filter(file => {
+      return (
+        file.type === "audio/mpeg" ||
+        file.type === "audio/mp3" ||
+        file.name.toLowerCase().endsWith(".mp3")
+      );
+    });
+
+    localSongs = mp3Files.map((file, index) => {
+      return {
+        id: `local-${index}-${file.name}`,
+
+        title: file.name.replace(/\.mp3$/i, ""),
+
+        artist: "Local Music",
+
+        file,
+
+        source: "local",
+
+        favorite: false
+      };
+    });
 
     currentView = "local";
 
-    updateView();
+    renderLocalSongs();
 
-    render();
+    if (localSongs.length > 0) {
+      setPlaylist(localSongs);
 
-    event.target.value = "";
-  }
-);
-
-
-/* =========================================================
-   CLEAR LOCAL
-========================================================= */
-
-$("clearLocalBtn").onclick = () => {
-
-  localSongs = [];
-
-  audio.pause();
-
-  audio.removeAttribute("src");
-
-  currentIndex = -1;
-
-  cleanupDriveBlob();
-
-  render();
-};
-
-
-/* =========================================================
-   PLAY BUTTON
-========================================================= */
-
-$("playBtn").onclick = () => {
-
-  if (!audio.src) {
-
-    if (currentSongs.length) {
-      playIndex(0);
+      playSong(0);
     }
 
-    return;
+    updateEmptyState();
   }
 
+  // ------------------------------------------
+  // PLAYLIST
+  // ------------------------------------------
 
-  if (audio.paused) {
+  function setPlaylist(songs) {
+    currentPlaylist = Array.isArray(songs)
+      ? [...songs]
+      : [];
 
-    audio.play();
-
-  } else {
-
-    audio.pause();
-  }
-};
-
-
-/* =========================================================
-   NEXT / PREVIOUS
-========================================================= */
-
-$("nextBtn").onclick = next;
-
-$("prevBtn").onclick = previous;
-
-
-/* =========================================================
-   SHUFFLE
-========================================================= */
-
-$("shuffleBtn").onclick = () => {
-
-  shuffle = !shuffle;
-
-  $("shuffleBtn")
-    .classList
-    .toggle(
-      "active",
-      shuffle
-    );
-};
-
-
-/* =========================================================
-   REPEAT
-========================================================= */
-
-$("repeatBtn").onclick = () => {
-
-  repeat = !repeat;
-
-  $("repeatBtn")
-    .classList
-    .toggle(
-      "active",
-      repeat
-    );
-};
-
-
-/* =========================================================
-   FAVORITE
-========================================================= */
-
-$("favoriteBtn").onclick = () => {
-
-  if (!currentSongs[currentIndex]) {
-    return;
+    currentIndex = -1;
   }
 
-  const song =
-    currentSongs[currentIndex];
-
-  song.favorite =
-    !song.favorite;
-
-  $("favoriteBtn").textContent =
-    song.favorite ? "♥" : "♡";
-
-  render();
-};
-
-
-/* =========================================================
-   AUDIO EVENTS
-========================================================= */
-
-audio.addEventListener(
-  "play",
-  () => {
-    $("playBtn").textContent = "⏸";
-  }
-);
-
-
-audio.addEventListener(
-  "pause",
-  () => {
-    $("playBtn").textContent = "▶";
-  }
-);
-
-
-audio.addEventListener(
-  "loadedmetadata",
-  () => {
-
-    $("duration").textContent =
-      formatTime(audio.duration);
-
-    if (currentSongs[currentIndex]) {
-
-      currentSongs[currentIndex].duration =
-        audio.duration;
-
-      render();
+  function getCurrentSongs() {
+    if (currentView === "drive") {
+      return getFilteredSongs(driveSongs);
     }
+
+    return getFilteredSongs(localSongs);
   }
-);
 
-
-audio.addEventListener(
-  "timeupdate",
-  () => {
-
-    $("currentTime").textContent =
-      formatTime(audio.currentTime);
-
-    $("progress").value =
-      audio.duration
-        ? (
-            audio.currentTime /
-            audio.duration
-          ) * 100
-        : 0;
-  }
-);
-
-
-audio.addEventListener(
-  "ended",
-  () => {
-
-    if (repeat) {
-
-      playIndex(currentIndex);
-
-    } else {
-
-      next();
+  function getFilteredSongs(songs) {
+    if (!searchText.trim()) {
+      return [...songs];
     }
-  }
-);
 
+    const query = searchText.toLowerCase().trim();
 
-/* =========================================================
-   PROGRESS
-========================================================= */
+    return songs.filter(song => {
+      const title = String(song.title || "").toLowerCase();
+      const artist = String(song.artist || "").toLowerCase();
 
-$("progress").addEventListener(
-  "input",
-  event => {
-
-    if (audio.duration) {
-
-      audio.currentTime =
-        (
-          Number(event.target.value) /
-          100
-        ) *
-        audio.duration;
-    }
-  }
-);
-
-
-/* =========================================================
-   VOLUME
-========================================================= */
-
-$("volume").addEventListener(
-  "input",
-  event => {
-
-    audio.volume =
-      Number(event.target.value);
-  }
-);
-
-
-audio.volume = 0.8;
-
-
-/* =========================================================
-   SEARCH
-========================================================= */
-
-searchInput.addEventListener(
-  "input",
-  render
-);
-
-
-/* =========================================================
-   NAVIGATION
-========================================================= */
-
-document
-  .querySelectorAll(".nav-btn")
-  .forEach(button => {
-
-    button.addEventListener(
-      "click",
-      () => {
-
-        currentView =
-          button.dataset.view;
-
-        updateView();
-
-        render();
-      }
-    );
-  });
-
-
-/* =========================================================
-   UPDATE VIEW
-========================================================= */
-
-function updateView() {
-
-  document
-    .querySelectorAll(".nav-btn")
-    .forEach(button => {
-
-      button.classList.toggle(
-        "active",
-        button.dataset.view === currentView
+      return (
+        title.includes(query) ||
+        artist.includes(query)
       );
     });
+  }
 
+  // ------------------------------------------
+  // PLAY SONG
+  // ------------------------------------------
 
-  const titles = {
+  function playSong(index) {
+    const songs = getCurrentSongs();
 
-    local: [
-      "Local Music",
-      "Play MP3 files directly from your browser."
-    ],
-
-    drive: [
-      "Google Drive",
-      "Play MP3 files from your Google Drive."
-    ],
-
-    favorites: [
-      "Favorites",
-      "Your favorite songs."
-    ]
-  };
-
-
-  $("viewTitle").textContent =
-    titles[currentView][0];
-
-  $("viewSubtitle").textContent =
-    titles[currentView][1];
-
-
-  $("sectionTitle").textContent =
-    currentView === "favorites"
-      ? "Favorites"
-      : "Songs";
-
-
-  $("drivePanel")
-    .classList
-    .toggle(
-      "hidden",
-      currentView !== "drive"
-    );
-}
-
-
-/* =========================================================
-   WAIT FOR GOOGLE GIS
-========================================================= */
-
-function waitForGoogleGIS() {
-
-  return new Promise(
-    (resolve, reject) => {
-
-      let attempts = 0;
-
-      const timer =
-        setInterval(() => {
-
-          attempts++;
-
-          if (
-            window.google &&
-            google.accounts &&
-            google.accounts.oauth2
-          ) {
-
-            clearInterval(timer);
-
-            resolve();
-
-            return;
-          }
-
-
-          if (attempts >= 100) {
-
-            clearInterval(timer);
-
-            reject(
-              new Error(
-                "Google Identity Services did not load."
-              )
-            );
-          }
-
-        }, 100);
+    if (!songs.length) {
+      return;
     }
-  );
-}
 
+    if (index < 0 || index >= songs.length) {
+      return;
+    }
 
-/* =========================================================
-   INITIALIZE GOOGLE OAUTH
-========================================================= */
+    const song = songs[index];
 
-async function initDriveOAuth() {
+    currentPlaylist = songs;
+    currentIndex = index;
 
-  try {
+    // ----------------------------------------
+    // LOCAL FILE
+    // ----------------------------------------
 
-    await waitForGoogleGIS();
+    if (song.source === "local") {
+      if (localObjectUrl) {
+        URL.revokeObjectURL(localObjectUrl);
+        localObjectUrl = null;
+      }
 
+      localObjectUrl = URL.createObjectURL(song.file);
 
-    if (
-      typeof DRIVE_CONFIG === "undefined" ||
-      !DRIVE_CONFIG.clientId
-    ) {
+      audio.src = localObjectUrl;
+    }
 
-      console.warn(
-        "Google Drive Client ID is missing."
-      );
+    // ----------------------------------------
+    // PUBLIC GOOGLE DRIVE
+    // ----------------------------------------
+
+    else if (song.source === "drive") {
+      audio.src = song.streamUrl;
+    }
+
+    // ----------------------------------------
+    // UPDATE UI
+    // ----------------------------------------
+
+    if (songTitle) {
+      songTitle.textContent = song.title;
+    }
+
+    if (songArtist) {
+      songArtist.textContent = song.artist;
+    }
+
+    updateActiveSong();
+
+    audio.load();
+
+    const playPromise = audio.play();
+
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          isPlaying = true;
+          updatePlayButton();
+        })
+        .catch(error => {
+          console.warn(
+            "Audio playback was blocked or failed:",
+            error
+          );
+
+          isPlaying = false;
+          updatePlayButton();
+        });
+    }
+  }
+
+  // ------------------------------------------
+  // PLAY / PAUSE
+  // ------------------------------------------
+
+  function togglePlay() {
+    if (!audio.src) {
+      const songs = getCurrentSongs();
+
+      if (songs.length > 0) {
+        playSong(0);
+      }
 
       return;
     }
 
-
-    driveTokenClient =
-      google.accounts.oauth2.initTokenClient({
-
-        client_id:
-          DRIVE_CONFIG.clientId,
-
-        scope:
-          DRIVE_SCOPE,
-
-        callback: response => {
-
-          if (
-            response &&
-            response.access_token
-          ) {
-
-            driveAccessToken =
-              response.access_token;
-
-            onDriveConnected();
-          }
-        }
-
-      });
-
-
-  } catch (error) {
-
-    console.error(
-      "Google OAuth initialization failed:",
-      error
-    );
-  }
-}
-
-
-/* =========================================================
-   CONNECT DRIVE
-========================================================= */
-
-async function connectDrive() {
-
-  if (
-    typeof DRIVE_CONFIG === "undefined" ||
-    !DRIVE_CONFIG.clientId
-  ) {
-
-    $("driveStatus").textContent =
-      "Add your OAuth clientId in js/config.js first.";
-
-    return;
-  }
-
-
-  try {
-
-    await waitForGoogleGIS();
-
-
-    if (!driveTokenClient) {
-
-      driveTokenClient =
-        google.accounts.oauth2.initTokenClient({
-
-          client_id:
-            DRIVE_CONFIG.clientId,
-
-          scope:
-            DRIVE_SCOPE,
-
-          callback: response => {
-
-            if (
-              response &&
-              response.access_token
-            ) {
-
-              driveAccessToken =
-                response.access_token;
-
-              onDriveConnected();
-            }
-          }
-
+    if (audio.paused) {
+      audio
+        .play()
+        .then(() => {
+          isPlaying = true;
+          updatePlayButton();
+        })
+        .catch(error => {
+          console.warn(error);
         });
+    } else {
+      audio.pause();
+
+      isPlaying = false;
+
+      updatePlayButton();
+    }
+  }
+
+  function updatePlayButton() {
+    if (!playBtn) return;
+
+    if (isPlaying) {
+      playBtn.innerHTML = "❚❚";
+      playBtn.setAttribute("aria-label", "Pause");
+    } else {
+      playBtn.innerHTML = "▶";
+      playBtn.setAttribute("aria-label", "Play");
+    }
+  }
+
+  // ------------------------------------------
+  // PREVIOUS
+  // ------------------------------------------
+
+  function playPrevious() {
+    const songs = getCurrentSongs();
+
+    if (!songs.length) {
+      return;
     }
 
+    if (audio.currentTime > 3) {
+      audio.currentTime = 0;
+      return;
+    }
 
-    $("driveStatus").textContent =
-      "Connecting to Google Drive...";
+    let newIndex = currentIndex - 1;
 
+    if (newIndex < 0) {
+      newIndex = songs.length - 1;
+    }
 
-    driveTokenClient.requestAccessToken({
-      prompt: "consent"
-    });
-
-
-  } catch (error) {
-
-    console.error(error);
-
-    $("driveStatus").textContent =
-      "Google login failed. Please try again.";
+    playSong(newIndex);
   }
-}
 
+  // ------------------------------------------
+  // NEXT
+  // ------------------------------------------
 
-/* =========================================================
-   AFTER CONNECTED
-========================================================= */
+  function playNext() {
+    const songs = getCurrentSongs();
 
-async function onDriveConnected() {
+    if (!songs.length) {
+      return;
+    }
 
-  $("driveStatus").textContent =
-    "Connected. Loading My Music...";
+    let newIndex;
 
-
-  $("driveConnectBtn").textContent =
-    "Connected ✓";
-
-
-  $("driveRefreshBtn")
-    .classList
-    .remove("hidden");
-
-
-  try {
-
-    await loadDriveMusic();
-
-
-  } catch (error) {
-
-    console.error(
-      "Drive loading error:",
-      error
-    );
-
-    $("driveStatus").textContent =
-      "Connected, but could not load My Music folder.";
-  }
-}
-
-
-/* =========================================================
-   DRIVE API REQUEST
-========================================================= */
-
-async function driveRequest(
-  url
-) {
-
-  const response =
-    await fetch(
-      url,
-      {
-        headers: {
-          Authorization:
-            `Bearer ${driveAccessToken}`
-        }
+    if (isShuffle) {
+      if (songs.length <= 1) {
+        newIndex = 0;
+      } else {
+        do {
+          newIndex = Math.floor(
+            Math.random() * songs.length
+          );
+        } while (
+          newIndex === currentIndex
+        );
       }
-    );
+    } else {
+      newIndex = currentIndex + 1;
 
+      if (newIndex >= songs.length) {
+        newIndex = 0;
+      }
+    }
 
-  if (!response.ok) {
-
-    const text =
-      await response.text();
-
-    console.error(
-      "Drive API error:",
-      response.status,
-      text
-    );
-
-    throw new Error(
-      `Google Drive API error: ${response.status}`
-    );
+    playSong(newIndex);
   }
 
+  // ------------------------------------------
+  // AUDIO ENDED
+  // ------------------------------------------
 
-  return response.json();
-}
+  function handleSongEnded() {
+    if (repeatMode === "one") {
+      audio.currentTime = 0;
 
+      audio.play();
 
-/* =========================================================
-   FIND "MY MUSIC" FOLDER
-========================================================= */
+      return;
+    }
 
-async function findMyMusicFolder() {
+    const songs = getCurrentSongs();
 
-  const params =
-    new URLSearchParams({
+    if (!songs.length) {
+      return;
+    }
 
-      q:
-        "name = 'My Music' " +
-        "and mimeType = 'application/vnd.google-apps.folder' " +
-        "and trashed = false " +
-        "and 'root' in parents",
+    if (
+      currentIndex >= songs.length - 1 &&
+      repeatMode === "off"
+    ) {
+      isPlaying = false;
 
-      fields:
-        "files(id,name,mimeType)",
+      updatePlayButton();
 
-      pageSize:
-        "100"
+      return;
+    }
+
+    playNext();
+  }
+
+  // ------------------------------------------
+  // SHUFFLE
+  // ------------------------------------------
+
+  function toggleShuffle() {
+    isShuffle = !isShuffle;
+
+    if (shuffleBtn) {
+      shuffleBtn.classList.toggle(
+        "active",
+        isShuffle
+      );
+    }
+  }
+
+  // ------------------------------------------
+  // REPEAT
+  // ------------------------------------------
+
+  function toggleRepeat() {
+    if (repeatMode === "off") {
+      repeatMode = "all";
+    } else if (repeatMode === "all") {
+      repeatMode = "one";
+    } else {
+      repeatMode = "off";
+    }
+
+    updateRepeatButton();
+  }
+
+  function updateRepeatButton() {
+    if (!repeatBtn) return;
+
+    repeatBtn.classList.toggle(
+      "active",
+      repeatMode !== "off"
+    );
+
+    if (repeatMode === "one") {
+      repeatBtn.textContent = "🔂";
+    } else {
+      repeatBtn.textContent = "🔁";
+    }
+  }
+
+  // ------------------------------------------
+  // PROGRESS
+  // ------------------------------------------
+
+  function updateProgress() {
+    if (!audio.duration) {
+      return;
+    }
+
+    const percentage =
+      (audio.currentTime / audio.duration) * 100;
+
+    if (progressBar) {
+      progressBar.value = percentage || 0;
+    }
+
+    if (currentTimeEl) {
+      currentTimeEl.textContent =
+        formatTime(audio.currentTime);
+    }
+
+    if (durationEl) {
+      durationEl.textContent =
+        formatTime(audio.duration);
+    }
+  }
+
+  function seekAudio() {
+    if (!audio.duration) {
+      return;
+    }
+
+    const value = Number(progressBar.value);
+
+    audio.currentTime =
+      (value / 100) * audio.duration;
+  }
+
+  // ------------------------------------------
+  // VOLUME
+  // ------------------------------------------
+
+  function updateVolume() {
+    if (!volumeBar) return;
+
+    const volume = Number(volumeBar.value);
+
+    audio.volume = volume;
+
+    audio.muted = volume === 0;
+  }
+
+  // ------------------------------------------
+  // SEARCH
+  // ------------------------------------------
+
+  function handleSearch() {
+    searchText =
+      searchInput?.value?.toLowerCase() || "";
+
+    if (currentView === "drive") {
+      renderDriveSongs();
+    } else {
+      renderLocalSongs();
+    }
+
+    updateEmptyState();
+  }
+
+  // ------------------------------------------
+  // RENDER LOCAL SONGS
+  // ------------------------------------------
+
+  function renderLocalSongs() {
+    if (!localMusicList) return;
+
+    const songs = getFilteredSongs(localSongs);
+
+    localMusicList.innerHTML = "";
+
+    if (!songs.length) {
+      return;
+    }
+
+    songs.forEach((song, index) => {
+      const item =
+        document.createElement("div");
+
+      item.className = "song-item";
+
+      item.dataset.id = song.id;
+
+      item.innerHTML = `
+        <div class="song-info">
+          <div class="song-title">
+            ${escapeHtml(song.title)}
+          </div>
+
+          <div class="song-artist">
+            ${escapeHtml(song.artist)}
+          </div>
+        </div>
+
+        <button
+          class="song-play-btn"
+          type="button"
+          aria-label="Play"
+        >
+          ▶
+        </button>
+      `;
+
+      item.addEventListener(
+        "click",
+        event => {
+          if (
+            event.target.closest(
+              ".song-play-btn"
+            )
+          ) {
+            return;
+          }
+
+          currentView = "local";
+
+          playSong(index);
+        }
+      );
+
+      const button =
+        item.querySelector(".song-play-btn");
+
+      if (button) {
+        button.addEventListener(
+          "click",
+          event => {
+            event.stopPropagation();
+
+            currentView = "local";
+
+            playSong(index);
+          }
+        );
+      }
+
+      localMusicList.appendChild(item);
     });
 
-
-  const data =
-    await driveRequest(
-      `${DRIVE_API}/files?${params.toString()}`
-    );
-
-
-  if (
-    !data.files ||
-    data.files.length === 0
-  ) {
-
-    throw new Error(
-      "My Music folder was not found."
-    );
+    updateActiveSong();
   }
 
+  // ------------------------------------------
+  // RENDER DRIVE SONGS
+  // ------------------------------------------
 
-  return data.files[0].id;
-}
+  function renderDriveSongs() {
+    if (!driveMusicList) return;
 
+    const songs =
+      getFilteredSongs(driveSongs);
 
-/* =========================================================
-   LOAD SONGS FROM MY MUSIC
-========================================================= */
+    driveMusicList.innerHTML = "";
 
-async function loadDriveMusic() {
+    if (!songs.length) {
+      return;
+    }
 
-  if (!driveAccessToken) {
+    songs.forEach((song, index) => {
+      const item =
+        document.createElement("div");
 
-    throw new Error(
-      "No Google Drive access token."
-    );
+      item.className = "song-item";
+
+      item.dataset.id = song.id;
+
+      item.innerHTML = `
+        <div class="song-info">
+          <div class="song-title">
+            ${escapeHtml(song.title)}
+          </div>
+
+          <div class="song-artist">
+            ${escapeHtml(song.artist)}
+          </div>
+        </div>
+
+        <button
+          class="song-play-btn"
+          type="button"
+          aria-label="Play"
+        >
+          ▶
+        </button>
+      `;
+
+      item.addEventListener(
+        "click",
+        event => {
+          if (
+            event.target.closest(
+              ".song-play-btn"
+            )
+          ) {
+            return;
+          }
+
+          currentView = "drive";
+
+          playSong(index);
+        }
+      );
+
+      const button =
+        item.querySelector(".song-play-btn");
+
+      if (button) {
+        button.addEventListener(
+          "click",
+          event => {
+            event.stopPropagation();
+
+            currentView = "drive";
+
+            playSong(index);
+          }
+        );
+      }
+
+      driveMusicList.appendChild(item);
+    });
+
+    updateActiveSong();
   }
 
+  // ------------------------------------------
+  // ACTIVE SONG
+  // ------------------------------------------
 
-  $("driveStatus").textContent =
-    "Finding My Music folder...";
-
-
-  driveFolderId =
-    await findMyMusicFolder();
-
-
-  $("driveStatus").textContent =
-    "Loading MP3 files...";
-
-
-  let allFiles = [];
-
-  let pageToken = null;
-
-
-  do {
-
-    const params =
-      new URLSearchParams({
-
-        q:
-          `'${driveFolderId}' in parents ` +
-          "and trashed = false",
-
-        fields:
-          "nextPageToken,files(id,name,mimeType,size)",
-
-        pageSize:
-          "1000"
+  function updateActiveSong() {
+    document
+      .querySelectorAll(".song-item")
+      .forEach(item => {
+        item.classList.remove("active");
       });
 
-
-    if (pageToken) {
-
-      params.set(
-        "pageToken",
-        pageToken
-      );
+    if (
+      currentIndex < 0 ||
+      !currentPlaylist[currentIndex]
+    ) {
+      return;
     }
 
+    const song =
+      currentPlaylist[currentIndex];
 
-    const data =
-      await driveRequest(
-        `${DRIVE_API}/files?${params.toString()}`
+    const activeItem =
+      document.querySelector(
+        `.song-item[data-id="${CSS.escape(song.id)}"]`
       );
 
+    if (activeItem) {
+      activeItem.classList.add("active");
+    }
+  }
 
-    if (data.files) {
+  // ------------------------------------------
+  // EMPTY STATE
+  // ------------------------------------------
 
-      allFiles.push(
-        ...data.files
-      );
+  function updateEmptyState() {
+    if (!emptyState) return;
+
+    const songs =
+      currentView === "drive"
+        ? getFilteredSongs(driveSongs)
+        : getFilteredSongs(localSongs);
+
+    if (songs.length > 0) {
+      emptyState.style.display = "none";
+      return;
     }
 
+    emptyState.style.display = "";
 
-    pageToken =
-      data.nextPageToken || null;
+    if (currentView === "drive") {
+      emptyState.textContent =
+        "No public Google Drive songs found.";
+    } else {
+      emptyState.textContent =
+        "Choose MP3 files to start listening.";
+    }
+  }
 
-  } while (pageToken);
+  // ------------------------------------------
+  // VIEW SWITCH
+  // ------------------------------------------
 
+  function switchView(view) {
+    currentView = view;
 
-  /* -----------------------------------------
-     ONLY MP3 FILES
-  ----------------------------------------- */
+    if (view === "drive") {
+      renderDriveSongs();
 
-  const mp3Files =
-    allFiles.filter(file => {
-
-      const name =
-        file.name.toLowerCase();
-
-      return (
-        name.endsWith(".mp3") ||
-        file.mimeType === "audio/mpeg"
-      );
-    });
-
-
-  /*
-     Keep existing favorite status
-  */
-
-  const favoriteMap =
-    new Map(
-      driveSongs.map(song => [
-        song.driveId,
-        song.favorite
-      ])
-    );
-
-
-  driveSongs =
-    mp3Files.map(file => {
-
-      const song =
-        getDriveMeta(file);
-
-      if (
-        favoriteMap.has(file.id)
-      ) {
-
-        song.favorite =
-          favoriteMap.get(file.id);
+      if (driveStatus) {
+        updateDriveStatus(
+          `${driveSongs.length} public song${
+            driveSongs.length === 1
+              ? ""
+              : "s"
+          } loaded`
+        );
       }
+    } else {
+      renderLocalSongs();
+    }
 
-      return song;
-    });
+    updateEmptyState();
+  }
 
+  // ------------------------------------------
+  // LOCAL FILE INPUT
+  // ------------------------------------------
 
-  driveSongs.sort(
-    (a, b) =>
-      a.title.localeCompare(
-        b.title,
-        undefined,
-        {
-          numeric: true,
-          sensitivity: "base"
-        }
-      )
+  if (localFilesInput) {
+    localFilesInput.addEventListener(
+      "change",
+      event => {
+        loadLocalMusic(
+          event.target.files
+        );
+      }
+    );
+  }
+
+  // ------------------------------------------
+  // PLAY BUTTON
+  // ------------------------------------------
+
+  if (playBtn) {
+    playBtn.addEventListener(
+      "click",
+      togglePlay
+    );
+  }
+
+  // ------------------------------------------
+  // PREVIOUS
+  // ------------------------------------------
+
+  if (prevBtn) {
+    prevBtn.addEventListener(
+      "click",
+      playPrevious
+    );
+  }
+
+  // ------------------------------------------
+  // NEXT
+  // ------------------------------------------
+
+  if (nextBtn) {
+    nextBtn.addEventListener(
+      "click",
+      playNext
+    );
+  }
+
+  // ------------------------------------------
+  // SHUFFLE
+  // ------------------------------------------
+
+  if (shuffleBtn) {
+    shuffleBtn.addEventListener(
+      "click",
+      toggleShuffle
+    );
+  }
+
+  // ------------------------------------------
+  // REPEAT
+  // ------------------------------------------
+
+  if (repeatBtn) {
+    repeatBtn.addEventListener(
+      "click",
+      toggleRepeat
+    );
+  }
+
+  // ------------------------------------------
+  // PROGRESS BAR
+  // ------------------------------------------
+
+  if (progressBar) {
+    progressBar.addEventListener(
+      "input",
+      seekAudio
+    );
+  }
+
+  // ------------------------------------------
+  // VOLUME
+  // ------------------------------------------
+
+  if (volumeBar) {
+    volumeBar.addEventListener(
+      "input",
+      updateVolume
+    );
+  }
+
+  // ------------------------------------------
+  // SEARCH
+  // ------------------------------------------
+
+  if (searchInput) {
+    searchInput.addEventListener(
+      "input",
+      handleSearch
+    );
+  }
+
+  // ------------------------------------------
+  // AUDIO EVENTS
+  // ------------------------------------------
+
+  audio.addEventListener(
+    "timeupdate",
+    updateProgress
   );
 
+  audio.addEventListener(
+    "loadedmetadata",
+    updateProgress
+  );
 
-  $("driveStatus").textContent =
-    `${driveSongs.length} songs loaded from My Music`;
+  audio.addEventListener(
+    "durationchange",
+    updateProgress
+  );
 
+  audio.addEventListener(
+    "play",
+    () => {
+      isPlaying = true;
+      updatePlayButton();
+    }
+  );
 
-  currentView = "drive";
+  audio.addEventListener(
+    "pause",
+    () => {
+      isPlaying = false;
+      updatePlayButton();
+    }
+  );
 
-  updateView();
+  audio.addEventListener(
+    "ended",
+    handleSongEnded
+  );
 
-  render();
-}
+  // ------------------------------------------
+  // AUDIO ERROR
+  // ------------------------------------------
 
+  audio.addEventListener(
+    "error",
+    () => {
+      const currentSong =
+        currentPlaylist[currentIndex];
 
-/* =========================================================
-   REFRESH DRIVE
-========================================================= */
+      if (
+        currentSong &&
+        currentSong.source === "drive"
+      ) {
+        console.error(
+          "Google Drive audio could not be played.",
+          currentSong
+        );
 
-async function refreshDrive() {
+        if (driveStatus) {
+          driveStatus.textContent =
+            "Unable to play this Drive file. Check that the file is public.";
+        }
+      }
+    }
+  );
 
-  if (!driveAccessToken) {
+  // ------------------------------------------
+  // DRIVE LOAD BUTTON
+  // ------------------------------------------
 
-    connectDrive();
+  if (driveConnectBtn) {
+    driveConnectBtn.textContent =
+      "Load Drive Music";
 
-    return;
+    driveConnectBtn.addEventListener(
+      "click",
+      () => {
+        currentView = "drive";
+
+        loadPublicDriveMusic();
+
+        switchView("drive");
+      }
+    );
   }
 
+  // ------------------------------------------
+  // DRIVE REFRESH BUTTON
+  // ------------------------------------------
 
-  try {
+  if (driveRefreshBtn) {
+    driveRefreshBtn.addEventListener(
+      "click",
+      () => {
+        currentView = "drive";
 
-    $("driveStatus").textContent =
-      "Refreshing Google Drive...";
+        loadPublicDriveMusic();
 
-
-    await loadDriveMusic();
-
-  } catch (error) {
-
-    console.error(error);
-
-    $("driveStatus").textContent =
-      "Refresh failed. Please reconnect Google Drive.";
+        switchView("drive");
+      }
+    );
   }
-}
 
+  // ------------------------------------------
+  // NAVIGATION BUTTONS
+  // ------------------------------------------
 
-/* =========================================================
-   DRIVE BUTTONS
-========================================================= */
+  document
+    .querySelectorAll("[data-view]")
+    .forEach(button => {
+      button.addEventListener(
+        "click",
+        () => {
+          const view =
+            button.dataset.view;
 
-$("driveConnectBtn")
-  .onclick = connectDrive;
+          if (
+            view === "drive" ||
+            view === "local"
+          ) {
+            switchView(view);
+          }
+        }
+      );
+    });
 
+  // ------------------------------------------
+  // KEYBOARD SHORTCUTS
+  // ------------------------------------------
 
-$("driveRefreshBtn")
-  .onclick = refreshDrive;
+  document.addEventListener(
+    "keydown",
+    event => {
+      // Don't trigger shortcuts while typing
+      if (
+        event.target.tagName === "INPUT" ||
+        event.target.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
 
+      if (event.code === "Space") {
+        event.preventDefault();
 
-/* =========================================================
-   CLEANUP WHEN PAGE CLOSES
-========================================================= */
+        togglePlay();
+      }
 
-window.addEventListener(
-  "beforeunload",
-  () => {
+      if (event.code === "ArrowRight") {
+        if (audio.duration) {
+          audio.currentTime = Math.min(
+            audio.duration,
+            audio.currentTime + 5
+          );
+        }
+      }
 
-    cleanupDriveBlob();
+      if (event.code === "ArrowLeft") {
+        audio.currentTime = Math.max(
+          0,
+          audio.currentTime - 5
+        );
+      }
+    }
+  );
+
+  // ------------------------------------------
+  // INITIALIZE
+  // ------------------------------------------
+
+  if (volumeBar) {
+    audio.volume =
+      Number(volumeBar.value) || 1;
+  } else {
+    audio.volume = 1;
   }
-);
 
+  updatePlayButton();
+  updateRepeatButton();
 
-/* =========================================================
-   START APP
-========================================================= */
+  // Load public Drive music automatically
+  loadPublicDriveMusic();
 
-updateView();
+  updateEmptyState();
 
-render();
+  console.log(
+    "My Music Player initialized."
+  );
 
-initDriveOAuth();
+  console.log(
+    `Public Drive Folder ID: ${
+      DRIVE_CONFIG?.folderId || "Not set"
+    }`
+  );
+
+  console.log(
+    `Public Drive Songs: ${driveSongs.length}`
+  );
+});
