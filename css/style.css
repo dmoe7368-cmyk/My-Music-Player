@@ -71,3 +71,109 @@ input[type=range] { width:100%; accent-color:var(--accent); cursor:pointer; }
   .song { grid-template-columns:38px 1fr auto; }
   .song > .song-duration { display:none; }
 }
+/* ============================================
+   SONG LIST FIX
+   ============================================ */
+
+.song-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 58px;
+  gap: 10px;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+.song-item:hover,
+.song-item.active {
+  background: var(--panel2);
+}
+
+.song-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 8px;
+
+  /* IMPORTANT */
+  background: transparent !important;
+  color: var(--text) !important;
+
+  text-align: left;
+}
+
+.song-main:hover {
+  background: transparent !important;
+}
+
+.song-number {
+  flex: 0 0 30px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.song-details {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.song-details strong {
+  display: block;
+  color: var(--text) !important;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.song-details small {
+  display: block;
+  color: var(--muted) !important;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.song-favorite {
+  flex: 0 0 auto;
+  background: transparent !important;
+  color: var(--muted) !important;
+  padding: 10px !important;
+}
+
+.song-favorite.active {
+  color: var(--accent) !important;
+}
+
+/* Mobile */
+@media (max-width: 800px) {
+
+  .song-item {
+    min-height: 54px;
+    padding: 5px 2px;
+  }
+
+  .song-main {
+    padding: 9px 4px;
+    gap: 8px;
+  }
+
+  .song-number {
+    flex-basis: 26px;
+  }
+
+  .song-details strong {
+    font-size: 15px;
+  }
+
+  .song-details small {
+    font-size: 12px;
+  }
+
+}
