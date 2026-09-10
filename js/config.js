@@ -9,7 +9,7 @@ const DRIVE_CONFIG = {
 
   // Google Drive API Key
   // Replace this with your Google API Key
-  apiKey: "YOUR_GOOGLE_API_KEY",
+  apiKey: "AIzaSyCmpoImAy7O8brST6lBFWBupa_AwEeeEGo",
 
   // Automatically load music from the folder
   autoLoad: true
