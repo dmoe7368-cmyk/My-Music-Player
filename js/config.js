@@ -1,4 +1,17 @@
+// ============================================
+// PUBLIC GOOGLE DRIVE CONFIG
+// ============================================
+
 const DRIVE_CONFIG = {
-  clientId: "944416456576-8o11950u46oq5bkvtb28lkkra67deah8.apps.googleusercontent.com",
-  apiKey: ""
+
+  // Your public Google Drive folder ID
+  folderId: "1903JCYkLeqt6MJ7bFWO9G4Ikgr0bbKY2",
+
+  // Google Drive API Key
+  // Replace this with your Google API Key
+  apiKey: "YOUR_GOOGLE_API_KEY",
+
+  // Automatically load music from the folder
+  autoLoad: true
+
 };
