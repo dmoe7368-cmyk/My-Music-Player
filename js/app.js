@@ -63,11 +63,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const secs = Math.floor(seconds % 60);
     return `${minutes}:${String(secs).padStart(2, "0")}`;
   }
-
   function getDriveUrl(fileId) {
-    return `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`;
+  return `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&key=${encodeURIComponent(window.DRIVE_CONFIG.apiKey)}`;
   }
-
   function saveFavorites() {
     localStorage.setItem("myMusicFavorites", JSON.stringify(favorites));
   }
