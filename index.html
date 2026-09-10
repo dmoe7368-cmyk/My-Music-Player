@@ -1,69 +1,116 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  >
 
   <meta
     name="description"
-    content="Local and Google Drive MP3 music player"
+    content="My Music Player - Local and Google Drive MP3 Music Player"
+  >
+
+  <meta name="theme-color" content="#0b0d12">
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+
+  <meta
+    name="mobile-web-app-capable"
+    content="yes"
+  >
+
+  <meta
+    name="apple-mobile-web-app-capable"
+    content="yes"
+  >
+
+  <meta
+    name="apple-mobile-web-app-status-bar-style"
+    content="black-translucent"
+  >
+
+  <meta
+    name="apple-mobile-web-app-title"
+    content="My Music"
   >
 
   <title>My Music Player</title>
 
+  <!-- CSS -->
   <link rel="stylesheet" href="css/style.css">
+
 </head>
+
 
 <body>
 
   <div class="app">
 
-    <!-- =========================
-         SIDEBAR
-    ========================== -->
+
+    <!-- =========================================
+         SIDEBAR / NAVIGATION
+    ========================================== -->
+
     <aside class="sidebar">
 
       <div class="brand">
         🎵 <span>My Music</span>
       </div>
 
+
       <nav>
 
         <button
           class="nav-btn active"
           data-view="local"
+          type="button"
         >
           💻 Local Music
         </button>
 
+
         <button
           class="nav-btn"
           data-view="drive"
+          type="button"
         >
           ☁️ Google Drive
         </button>
 
+
         <button
           class="nav-btn"
           data-view="favorites"
+          type="button"
         >
           ❤️ Favorites
         </button>
 
       </nav>
 
+
+      <!-- LOCAL MUSIC ACTIONS -->
+
       <div class="sidebar-bottom">
 
         <button
           id="chooseFilesBtn"
           class="primary-btn"
+          type="button"
         >
           ＋ Choose MP3 Files
         </button>
 
+
         <button
           id="clearLocalBtn"
           class="text-btn"
+          type="button"
         >
           Clear local playlist
         </button>
@@ -73,12 +120,16 @@
     </aside>
 
 
-    <!-- =========================
+
+    <!-- =========================================
          MAIN CONTENT
-    ========================== -->
+    ========================================== -->
+
     <main class="main">
 
+
       <!-- TOP BAR -->
+
       <header class="topbar">
 
         <div>
@@ -93,19 +144,25 @@
 
         </div>
 
+
+        <!-- SEARCH -->
+
         <input
           id="searchInput"
           type="search"
           placeholder="Search songs..."
           aria-label="Search songs"
+          autocomplete="off"
         >
 
       </header>
 
 
-      <!-- =========================
-           GOOGLE DRIVE PANEL
-      ========================== -->
+
+      <!-- =========================================
+           GOOGLE DRIVE
+      ========================================== -->
+
       <section
         id="drivePanel"
         class="drive-panel hidden"
@@ -118,23 +175,27 @@
           </h2>
 
           <p id="driveStatus">
-            Not connected. Connect your Google Drive to load your music.
+            Loading public Google Drive music...
           </p>
 
         </div>
+
 
         <div class="drive-actions">
 
           <button
             id="driveConnectBtn"
             class="primary-btn"
+            type="button"
           >
-            Connect Drive
+            Load Drive Music
           </button>
+
 
           <button
             id="driveRefreshBtn"
-            class="secondary-btn hidden"
+            class="secondary-btn"
+            type="button"
           >
             Refresh
           </button>
@@ -144,10 +205,15 @@
       </section>
 
 
-      <!-- =========================
+
+      <!-- =========================================
            SONG LIBRARY
-      ========================== -->
+      ========================================== -->
+
       <section class="library">
+
+
+        <!-- SECTION HEADER -->
 
         <div class="section-head">
 
@@ -162,7 +228,11 @@
         </div>
 
 
-        <!-- EMPTY STATE -->
+
+        <!-- =======================================
+             EMPTY STATE
+        ======================================== -->
+
         <div
           id="emptyState"
           class="empty-state"
@@ -172,17 +242,21 @@
             🎧
           </div>
 
+
           <h3>
             No songs yet
           </h3>
+
 
           <p>
             Choose MP3 files to start listening.
           </p>
 
+
           <button
             class="primary-btn"
             id="emptyChooseBtn"
+            type="button"
           >
             Choose MP3 Files
           </button>
@@ -190,7 +264,11 @@
         </div>
 
 
-        <!-- SONG LIST -->
+
+        <!-- =======================================
+             SONG LIST
+        ======================================== -->
+
         <div
           id="songList"
           class="song-list"
@@ -201,20 +279,29 @@
     </main>
 
 
-    <!-- =========================
+
+    <!-- =========================================
          MUSIC PLAYER
-    ========================== -->
+    ========================================== -->
+
     <footer class="player">
 
-      <!-- NOW PLAYING -->
+
+      <!-- =======================================
+           NOW PLAYING
+      ======================================== -->
+
       <div class="now-playing">
+
 
         <div
           id="cover"
           class="cover"
+          aria-hidden="true"
         >
           ♪
         </div>
+
 
         <div class="track-info">
 
@@ -228,10 +315,13 @@
 
         </div>
 
+
         <button
           id="favoriteBtn"
           class="icon-btn"
+          type="button"
           title="Favorite"
+          aria-label="Favorite"
         >
           ♡
         </button>
@@ -239,47 +329,77 @@
       </div>
 
 
-      <!-- CONTROLS -->
+
+      <!-- =======================================
+           PLAYER CONTROLS
+      ======================================== -->
+
       <div class="controls">
 
+
         <div class="control-buttons">
+
+
+          <!-- SHUFFLE -->
 
           <button
             id="shuffleBtn"
             class="icon-btn"
+            type="button"
             title="Shuffle"
+            aria-label="Shuffle"
           >
             🔀
           </button>
 
+
+          <!-- PREVIOUS -->
+
           <button
             id="prevBtn"
             class="icon-btn"
+            type="button"
             title="Previous"
+            aria-label="Previous song"
           >
             ⏮
           </button>
 
+
+          <!-- PLAY -->
+
           <button
             id="playBtn"
             class="play-btn"
+            type="button"
             title="Play"
+            aria-label="Play"
           >
             ▶
           </button>
 
+
+          <!-- NEXT -->
+
           <button
             id="nextBtn"
             class="icon-btn"
+            type="button"
             title="Next"
+            aria-label="Next song"
           >
             ⏭
           </button>
 
+
+          <!-- REPEAT -->
+
           <button
             id="repeatBtn"
             class="icon-btn"
+            type="button"
             title="Repeat"
+            aria-label="Repeat"
           >
             🔁
           </button>
@@ -287,12 +407,18 @@
         </div>
 
 
-        <!-- PROGRESS -->
+
+        <!-- =====================================
+             PROGRESS BAR
+        ====================================== -->
+
         <div class="progress-row">
+
 
           <span id="currentTime">
             0:00
           </span>
+
 
           <input
             id="progress"
@@ -300,7 +426,10 @@
             min="0"
             max="100"
             value="0"
+            step="0.1"
+            aria-label="Song progress"
           >
+
 
           <span id="duration">
             0:00
@@ -311,12 +440,17 @@
       </div>
 
 
-      <!-- VOLUME -->
+
+      <!-- =======================================
+           VOLUME
+      ======================================== -->
+
       <div class="volume">
 
         <span>
           🔊
         </span>
+
 
         <input
           id="volume"
@@ -325,6 +459,7 @@
           max="1"
           step="0.01"
           value="0.8"
+          aria-label="Volume"
         >
 
       </div>
@@ -334,9 +469,11 @@
   </div>
 
 
-  <!-- =========================
+
+  <!-- =========================================
        HIDDEN FILE INPUT
-  ========================== -->
+  ========================================== -->
+
   <input
     id="fileInput"
     type="file"
@@ -346,33 +483,67 @@
   >
 
 
-  <!-- =========================
-       AUDIO PLAYER
-  ========================== -->
-  <audio id="audio"></audio>
+
+  <!-- =========================================
+       AUDIO ELEMENT
+  ========================================== -->
+
+  <audio
+    id="audio"
+    preload="metadata"
+  ></audio>
 
 
-  <!-- =========================
+
+  <!-- =========================================
        GOOGLE DRIVE CONFIG
-  ========================== -->
+  ========================================== -->
+
   <script src="js/config.js"></script>
 
 
-  <!-- =========================
-       GOOGLE IDENTITY SERVICES
-       OAuth 2.0
-  ========================== -->
-  <script
-    src="https://accounts.google.com/gsi/client"
-    async
-    defer
-  ></script>
 
-
-  <!-- =========================
+  <!-- =========================================
        APP JAVASCRIPT
-  ========================== -->
+  ========================================== -->
+
   <script src="js/app.js"></script>
 
+
+
+  <!-- =========================================
+       PWA SERVICE WORKER
+  ========================================== -->
+
+  <script>
+
+    if ("serviceWorker" in navigator) {
+
+      window.addEventListener("load", function () {
+
+        navigator.serviceWorker
+          .register("/My-Music-Player/sw.js")
+          .then(function () {
+
+            console.log("My Music Player PWA ready");
+
+          })
+          .catch(function (error) {
+
+            console.error(
+              "PWA Service Worker error:",
+              error
+            );
+
+          });
+
+      });
+
+    }
+
+  </script>
+
+
 </body>
+
 </html>
