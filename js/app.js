@@ -1,5 +1,5 @@
 // ============================================
-// MY MUSIC PLAYER
+// XAMOE MUSIC PLAYER
 // Local MP3 + PUBLIC GOOGLE DRIVE
 // ============================================
 
@@ -44,10 +44,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let repeatMode = "off";
   let localObjectUrl = null;
 
-  if (!audio) {
-    console.error("Audio element #audio was not found.");
-    return;
-  }
+  if (!audio) return;
 
   audio.volume = Number(volumeBar?.value || 0.8);
 
@@ -63,9 +60,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const secs = Math.floor(seconds % 60);
     return `${minutes}:${String(secs).padStart(2, "0")}`;
   }
+
   function getDriveUrl(fileId) {
-  return `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&key=${encodeURIComponent(window.DRIVE_CONFIG.apiKey)}`;
+    return `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&key=${encodeURIComponent(window.DRIVE_CONFIG.apiKey)}`;
   }
+
   function saveFavorites() {
     localStorage.setItem("myMusicFavorites", JSON.stringify(favorites));
   }
@@ -76,11 +75,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function toggleFavorite(song) {
     if (!song) return;
+
     if (isFavorite(song)) {
       favorites = favorites.filter(id => id !== song.id);
     } else {
       favorites.push(song.id);
     }
+
     saveFavorites();
     renderCurrentView();
     updateFavoriteButton();
@@ -94,15 +95,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function getBaseSongs() {
     if (currentView === "drive") return driveSongs;
+
     if (currentView === "favorites") {
       return [...localSongs, ...driveSongs].filter(isFavorite);
     }
+
     return localSongs;
   }
 
   function getFilteredSongs() {
     const query = String(searchInput?.value || "").trim().toLowerCase();
     const songs = getBaseSongs();
+
     if (!query) return [...songs];
 
     return songs.filter(song =>
@@ -114,6 +118,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderSongs() {
     if (!songList) return;
+
     currentSongs = getFilteredSongs();
 
     if (songCount) songCount.textContent = `${currentSongs.length} songs`;
@@ -133,10 +138,12 @@ document.addEventListener("DOMContentLoaded", () => {
             <small>${escapeHtml(song.artist || "")}</small>
           </span>
         </button>
-        <button class="icon-btn song-favorite ${isFavorite(song) ? "active" : ""}"
-          data-favorite-index="${index}" type="button" aria-label="Favorite">
-          ${isFavorite(song) ? "♥" : "♡"}
-        </button>
+        <button
+          class="icon-btn song-favorite ${isFavorite(song) ? "active" : ""}"
+          data-favorite-index="${index}"
+          type="button"
+          aria-label="Favorite"
+        >${isFavorite(song) ? "♥" : "♡"}</button>
       </div>
     `).join("");
 
@@ -161,24 +168,28 @@ document.addEventListener("DOMContentLoaded", () => {
     currentView = view;
     currentIndex = -1;
 
+    document.body.classList.toggle("drive-view", view === "drive");
+    document.body.classList.toggle("favorites-view", view === "favorites");
+
     navButtons.forEach(button => {
       button.classList.toggle("active", button.dataset.view === view);
     });
 
     if (view === "drive") {
-      if (viewTitle) viewTitle.textContent = "Google Drive";
-      if (viewSubtitle) viewSubtitle.textContent = "Play public MP3 files from Google Drive.";
+      if (viewTitle) viewTitle.textContent = "XAMOE Drive";
+      if (viewSubtitle) viewSubtitle.textContent = "";
       if (sectionTitle) sectionTitle.textContent = "Songs";
-      drivePanel?.classList.remove("hidden");
+      drivePanel?.classList.add("hidden");
+
       if (!driveSongs.length) loadPublicDriveMusic();
     } else if (view === "favorites") {
       if (viewTitle) viewTitle.textContent = "Favorites";
-      if (viewSubtitle) viewSubtitle.textContent = "Your favorite songs.";
+      if (viewSubtitle) viewSubtitle.textContent = "";
       if (sectionTitle) sectionTitle.textContent = "Favorites";
       drivePanel?.classList.add("hidden");
     } else {
       if (viewTitle) viewTitle.textContent = "Local Music";
-      if (viewSubtitle) viewSubtitle.textContent = "Play MP3 files directly from your browser.";
+      if (viewSubtitle) viewSubtitle.textContent = "";
       if (sectionTitle) sectionTitle.textContent = "Songs";
       drivePanel?.classList.add("hidden");
     }
@@ -264,6 +275,20 @@ document.addEventListener("DOMContentLoaded", () => {
     playBtn.title = audio.paused ? "Play" : "Pause";
   }
 
+  function updateModeButtons() {
+    if (shuffleBtn) {
+      shuffleBtn.classList.toggle("active", isShuffle);
+      shuffleBtn.setAttribute("aria-pressed", String(isShuffle));
+    }
+
+    if (repeatBtn) {
+      const active = repeatMode !== "off";
+      repeatBtn.classList.toggle("active", active);
+      repeatBtn.setAttribute("aria-pressed", String(active));
+      repeatBtn.textContent = repeatMode === "one" ? "🔂" : "🔁";
+    }
+  }
+
   async function loadPublicDriveMusic() {
     if (!window.DRIVE_CONFIG) {
       if (driveStatus) driveStatus.textContent = "DRIVE_CONFIG not found.";
@@ -275,7 +300,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    if (driveStatus) driveStatus.textContent = "Loading music from Google Drive...";
+    if (driveStatus) driveStatus.textContent = "Loading...";
 
     if (driveConnectBtn) {
       driveConnectBtn.disabled = true;
@@ -312,7 +337,7 @@ document.addEventListener("DOMContentLoaded", () => {
           title: String(file.name || `Song ${index + 1}`)
             .replace(/\.(mp3|wma)$/i, "")
             .trim(),
-          artist: "Google Drive",
+          artist: "XAMOE Drive",
           fileName: file.name,
           mimeType: file.mimeType,
           size: file.size || null,
@@ -327,19 +352,20 @@ document.addEventListener("DOMContentLoaded", () => {
         );
 
       if (driveStatus) driveStatus.textContent = `${driveSongs.length} songs loaded`;
-      if (driveRefreshBtn) driveRefreshBtn.classList.remove("hidden");
 
       renderCurrentView();
     } catch (error) {
-      console.error("Google Drive error:", error);
+      console.error("XAMOE Drive error:", error);
+
       if (driveStatus) {
-        driveStatus.textContent = `Could not load Google Drive music: ${error.message}`;
+        driveStatus.textContent = `Could not load XAMOE Drive: ${error.message}`;
       }
+
       renderCurrentView();
     } finally {
       if (driveConnectBtn) {
         driveConnectBtn.disabled = false;
-        driveConnectBtn.textContent = "Load Drive Music";
+        driveConnectBtn.textContent = "Load";
       }
     }
   }
@@ -413,13 +439,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
   shuffleBtn?.addEventListener("click", () => {
     isShuffle = !isShuffle;
-    shuffleBtn.classList.toggle("active", isShuffle);
+    updateModeButtons();
   });
 
   repeatBtn?.addEventListener("click", () => {
-    repeatMode = repeatMode === "off" ? "all" : repeatMode === "all" ? "one" : "off";
-    repeatBtn.classList.toggle("active", repeatMode !== "off");
-    repeatBtn.textContent = repeatMode === "one" ? "🔂" : "🔁";
+    repeatMode =
+      repeatMode === "off" ? "all" :
+      repeatMode === "all" ? "one" : "off";
+
+    updateModeButtons();
   });
 
   searchInput?.addEventListener("input", renderCurrentView);
@@ -430,7 +458,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   progressBar?.addEventListener("input", () => {
     if (audio.duration) {
-      audio.currentTime = (Number(progressBar.value) / 100) * audio.duration;
+      audio.currentTime =
+        (Number(progressBar.value) / 100) * audio.duration;
     }
   });
 
@@ -442,7 +471,9 @@ document.addEventListener("DOMContentLoaded", () => {
       progressBar.value = (audio.currentTime / audio.duration) * 100;
     }
 
-    if (currentTimeEl) currentTimeEl.textContent = formatTime(audio.currentTime);
+    if (currentTimeEl) {
+      currentTimeEl.textContent = formatTime(audio.currentTime);
+    }
   });
 
   audio.addEventListener("loadedmetadata", () => {
@@ -456,7 +487,8 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    if (repeatMode === "off" && currentIndex >= getFilteredSongs().length - 1) {
+    if (repeatMode === "off" &&
+        currentIndex >= getFilteredSongs().length - 1) {
       updatePlayButton();
       return;
     }
@@ -465,7 +497,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   audio.addEventListener("error", () => {
-    console.warn("Audio error. The file may not be browser-compatible or Google Drive may require a download confirmation.");
+    console.warn("Audio error.");
   });
 
   document.addEventListener("keydown", event => {
@@ -485,10 +517,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Start on Local Music so the local file picker is immediately usable.
+  updateModeButtons();
   setView("local");
 
-  // Automatically load the public Drive folder when configured.
   if (window.DRIVE_CONFIG?.autoLoad) {
     loadPublicDriveMusic();
   }
